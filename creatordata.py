@@ -1,33 +1,59 @@
 import pandas as pd
-import numpy as np
 
-# Sample dataset creation
-data = {
-    'Creator ID': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    'Name': ['Alice Smith', 'Bob Johnson', 'Carlos Ruiz', 'Daniella Lee', 'Emily Zhang', 
-             'Fran Miller', 'George Tan', 'Hanna White', 'Ian Gomez', 'Julia Brown'],
-    'Category': ['Art', 'Music', 'Podcasts', 'Writing', 'Videos', 'Art', 'Music', 'Writing', 'Videos', 'Art'],
-    'Patrons': [1200, 800, 500, np.nan, 900, np.nan, 300, 250, 450, 1000],
-    'Monthly Earnings': [3500.50, 2400.00, 1500.00, np.nan, 3000.75, 0, 900.00, 800.00, 1400.25, 3100.00],
-    'Country': ['USA', 'Canada', 'Mexico', 'South Korea', 'China', 'USA', 'Singapore', 'Australia', 'Argentina', 'USA']
-}
+# Load the CSV file into a DataFrame
+df = pd.read_csv('Patreon.csv')
 
-df = pd.DataFrame(data)
+# Check if 'Launched' column exists
+if 'Launched' not in df.columns:
+    raise ValueError("The 'Launched' column is missing from the CSV file.")
 
-# 1. Handling Missing Data
-# Fill missing 'Patrons' with median value and 'Monthly Earnings' with 0
-df['Patrons'].fillna(df['Patrons'].median(), inplace=True)
-df['Monthly Earnings'].fillna(0, inplace=True)
+# Convert 'Launched' to a datetime object
+df['Launched'] = pd.to_datetime(df['Launched'], format='%b-%y', errors='coerce')
 
-#Hierarchical Indexing
-df.set_index(['Country', 'Category'], inplace=True)
+# Check for conversion errors
+if df['Launched'].isnull().any():
+    print("Warning: Some 'Launched' dates could not be converted and are set to NaT.")
 
+# Drop rows with NaT in 'Launched' column after conversion
+df.dropna(subset=['Launched'], inplace=True)
 
-# Aggregate by Category and compute total and average earnings
-category_aggregation = df.groupby('Category')['Monthly Earnings'].agg(['sum', 'mean'])
+# Set hierarchical index with 'Rank' and 'Launched'
+df.set_index(['Rank', 'Launched'], inplace=True)
 
-# Display
-print("Updated DataFrame with Hierarchical Indexing:")
-print(df)
-print("\nAggregation Results (Total and Average Earnings by Category):")
-print(category_aggregation)
+# Display the DataFrame with hierarchical indexing
+print("DataFrame with Hierarchical Index ('Rank' and 'Launched'):")
+print(df.head())  # Display first few rows for inspection
+
+# Perform basic aggregations
+total_patrons = df['Patrons'].sum()
+average_days_running = df['DaysRunning'].mean()
+
+print("\nTotal Patrons:", total_patrons)
+print("Average Days Running:", average_days_running)
+
+# Access data for a specific rank and launch date
+# Ensure the date format matches
+try:
+    specific_data = df.loc[(1, pd.Timestamp('2020-01-01'))]
+    print("\nData for Rank 1 in Jan-20:")
+    print(specific_data)
+except KeyError as e:
+    print(f"Error accessing specific data: {e}")
+
+# Access a range of ranks within a specific launch month
+try:
+    rank_range = df.loc[pd.IndexSlice[10:20, pd.Timestamp('2020-02-01')], :]
+    print("\nData for Ranks 10 to 20 in Feb-20:")
+    print(rank_range)
+except KeyError as e:
+    print(f"Error accessing range data: {e}")
+
+# Group by 'Launched' year and aggregate
+df['Year'] = df.index.get_level_values('Launched').year
+aggregated_by_year = df.groupby('Year').agg(
+    total_patrons=('Patrons', 'sum'),
+    average_days_running=('DaysRunning', 'mean')
+).reset_index()
+
+print("\nAggregated Data by Year:")
+print(aggregated_by_year)
